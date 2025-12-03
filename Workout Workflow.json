@@ -1,0 +1,148 @@
+{
+  "name": "Workout Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -288,
+        -32
+      ],
+      "id": "3c6d18ef-fba8-49c5-a06b-7069380ce2b3",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        144
+      ],
+      "id": "3f9c996b-0e45-46de-9154-0d54ec835301",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyAlXTNv7MoyFPuiuYh5T1M9gfZHHW6nlC0",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\": [\n        {\n          \"text\": \"You are a fitness coach AI.\\n\\nGenerate a daily workout plan for me.\\n\\nRequirements:\\n- 45–60 minute workout\\n- Mix of strength and conditioning across the week.\\n- Assume I have basic gym access (dumbbells, barbell, machines).\\n- Vary focus each day so I'm not hitting the same muscles in a row.\\n\\nReturn ONLY valid JSON (no markdown, no explanation) in this exact format:\\n\\n{\\n  \\\"title\\\": \\\"Day X – ...\\\",\\n  \\\"textBody\\\": \\\"...\\\",\\n  \\\"htmlBody\\\": \\\"...\\\"\\n}\\n\\nWhere:\\n- \\\"textBody\\\" is a plain-text version with numbered exercises (good for logs).\\n- \\\"htmlBody\\\" is an HTML email version with headings and lists.\\n\\nReturn ONLY the JSON object, nothing else.\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -80,
+        -32
+      ],
+      "id": "8ec098be-6f57-4268-838e-dff2d3b14a13",
+      "name": "Get Gemni Workout"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gemini response from previous node\nconst gemini = $json;\n\n// Get the raw text from Gemini\nlet rawText = gemini.candidates?.[0]?.content?.parts?.[0]?.text ?? \"\";\n\n// Strip markdown code fences if Gemini wrapped the JSON in ``` or ```json\nlet cleaned = rawText.trim();\n\nif (cleaned.startsWith(\"```\")) {\n  // Remove the first line (``` or ```json)\n  const firstNewline = cleaned.indexOf(\"\\n\");\n  if (firstNewline !== -1) {\n    cleaned = cleaned.slice(firstNewline + 1);\n  }\n  // Remove trailing ``` if present\n  const lastFence = cleaned.lastIndexOf(\"```\");\n  if (lastFence !== -1) {\n    cleaned = cleaned.slice(0, lastFence);\n  }\n  cleaned = cleaned.trim();\n}\n\n// Try to parse the cleaned JSON\nlet data;\ntry {\n  data = JSON.parse(cleaned);\n} catch (err) {\n  // Fallback if parsing still fails\n  data = {\n    title: \"Workout Plan\",\n    textBody: \"Error parsing Gemini response.\\n\\n\" + cleaned,\n    htmlBody: \"<h2>Workout Plan</h2><p>Error parsing Gemini response.</p><pre>\" + cleaned + \"</pre>\"\n  };\n}\n\n// Static image URL – change this to any image you like\nconst imageUrl = \"https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg\";\n\n// Use htmlBody if provided, otherwise wrap textBody\nconst innerContent = data.htmlBody && data.htmlBody.trim()\n  ? data.htmlBody\n  : `<pre style=\"white-space:pre-wrap;margin:0;\">${(data.textBody || \"\").replace(/</g, \"&lt;\")}</pre>`;\n\nconst title = data.title || \"Today’s Workout\";\n\n// Nicely styled HTML email\nconst finalHtmlBody = `\n<!DOCTYPE html>\n<html>\n  <head>\n    <meta charset=\"UTF-8\" />\n    <title>${title}</title>\n  </head>\n  <body style=\"margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;\">\n    <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#0f172a;padding:24px 12px;\">\n      <tr>\n        <td align=\"center\">\n          <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;background:#020617;border-radius:16px;overflow:hidden;border:1px solid #1f2937;\">\n            <!-- Header -->\n            <tr>\n              <td style=\"padding:20px 24px 12px 24px;background:linear-gradient(135deg,#0f172a,#1f2937);border-bottom:1px solid #1f2937;\">\n                <div style=\"font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#9ca3af;\">\n                  Daily AI-Powered Training\n                </div>\n                <div style=\"font-size:22px;font-weight:700;color:#e5e7eb;margin-top:4px;\">\n                  ${title}\n                </div>\n                <div style=\"font-size:13px;color:#9ca3af;margin-top:6px;\">\n                  Generated just for you by your Gemini + n8n workout assistant 💪\n                </div>\n              </td>\n            </tr>\n\n            <!-- Workout content -->\n            <tr>\n              <td style=\"padding:20px 24px 8px 24px;\">\n                <div style=\"font-size:14px;line-height:1.6;color:#e5e7eb;\">\n                  ${innerContent}\n                </div>\n              </td>\n            </tr>\n\n            <!-- Image section -->\n            <tr>\n              <td style=\"padding:0 24px 16px 24px;\">\n                <div style=\"border-radius:12px;overflow:hidden;border:1px solid #1f2937;\">\n                  <img src=\"${imageUrl}\"\n                       alt=\"Today's workout\"\n                       style=\"display:block;width:100%;height:auto;border:0;\" />\n                </div>\n              </td>\n            </tr>\n\n            <!-- CTA / footer -->\n            <tr>\n              <td style=\"padding:0 24px 20px 24px;\">\n                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\">\n                  <tr>\n                    <td style=\"border-radius:999px;background:#22c55e;padding:10px 20px;text-align:center;\">\n                      <span style=\"font-size:13px;font-weight:600;color:#022c22;\">\n                        Mark this as done ✅\n                      </span>\n                    </td>\n                  </tr>\n                </table>\n                <div style=\"font-size:11px;color:#6b7280;margin-top:12px;line-height:1.5;\">\n                  Tip: Reply to this email with how the workout felt (easy / solid / brutal) and\n                  later we can tune the prompt so Gemini adjusts intensity over time.\n                </div>\n              </td>\n            </tr>\n\n            <!-- Tiny footer -->\n            <tr>\n              <td style=\"padding:10px 24px 16px 24px;border-top:1px solid #1f2937;background:#020617;\">\n                <div style=\"font-size:10px;color:#4b5563;text-align:center;\">\n                  Sent automatically by your n8n workflow · You got this. One day at a time 💚\n                </div>\n              </td>\n            </tr>\n\n          </table>\n        </td>\n      </tr>\n    </table>\n  </body>\n</html>\n`;\n\n// Output fields for Gmail\nreturn [\n  {\n    json: {\n      subject: title,\n      textBody: data.textBody,\n      htmlBody: finalHtmlBody\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -32
+      ],
+      "id": "23ba40a1-a3bd-4d04-979c-f29c819a6fc5",
+      "name": "Parse JSON add image"
+    },
+    {
+      "parameters": {
+        "sendTo": "007196196@coyote.csusb.edu",
+        "subject": "={{ $json[\"subject\"] }}\n",
+        "message": "={{ $json[\"htmlBody\"] }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        320,
+        -32
+      ],
+      "id": "c69e8f2d-8ca5-483d-85f6-c8eba8d72149",
+      "name": "Send a message",
+      "webhookId": "17e367f5-3f1f-4056-bf99-2815d678fff7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "dmPfhtx1fz3WQmS2",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        []
+      ]
+    },
+    "Get Gemni Workout": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON add image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON add image": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Gemni Workout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "986d2c2c-873c-41e1-8896-99808e9387e0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b44a45ad90180f178dfe5bfd51ea7880c62bc8d3bc5ad1c774b8145ce3256434"
+  },
+  "id": "D32YWpr4FH9lx5QQ",
+  "tags": []
+}
